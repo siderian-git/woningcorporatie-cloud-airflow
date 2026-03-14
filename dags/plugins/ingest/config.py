@@ -10,6 +10,7 @@ POSTGRESQL_CONNECTION_URL = os.environ.get('POSTGRESQL_CONNECTION_URL', None)
 
 def initialize_config():
     global EMPIRE_CONNECTION_URL, POSTGRESQL_CONNECTION_URL
+    print("Initializing configuration: ", EMPIRE_CONNECTION_URL)
 
     if EMPIRE_CONNECTION_URL is None:
         print("EMPIRE_CONNECTION_URL not set in environment variables, using default values. Please set it to run the test against the actual Empire database.")
