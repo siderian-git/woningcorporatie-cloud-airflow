@@ -1,4 +1,4 @@
-plugins/
+plugins/*
 requirements.txt
 env
 .venv
