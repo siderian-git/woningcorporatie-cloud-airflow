@@ -41,6 +41,7 @@ def initialize_config():
         extra_parameters = ""
         # Format: postgresql://user:pass@host:5432/dbname
         POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}"
+    return EMPIRE_CONNECTION_URL, POSTGRESQL_CONNECTION_URL
 
 # # Local settings
 # if POSTGRESQL_CONNECTION_URL is None:

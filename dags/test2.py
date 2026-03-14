@@ -77,7 +77,9 @@ def test2():
             )
     @task()
     def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
-        config.initialize_config()
+        t1,t2 = config.initialize_config()
+        print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
+        print("t1:", t1)
 
         postgresql_ingest_engine = PostgresqlIngestEngine(
             connection_url=config.POSTGRESQL_CONNECTION_URL,
