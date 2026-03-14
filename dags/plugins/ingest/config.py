@@ -12,7 +12,7 @@ def initialize_config():
     global EMPIRE_CONNECTION_URL, POSTGRESQL_CONNECTION_URL
     print("Initializing configuration: ", EMPIRE_CONNECTION_URL)
 
-    if EMPIRE_CONNECTION_URL is None:
+    if EMPIRE_CONNECTION_URL is None or EMPIRE_CONNECTION_URL == "":
         print("EMPIRE_CONNECTION_URL not set in environment variables, using default values. Please set it to run the test against the actual Empire database.")
         server = "aanswqfq3xduxnq4kcx3gun3c4-m72rt5q7lxeubdwmo7ne6bsn6i.datawarehouse.fabric.microsoft.com"
         database = "Lakehouse_192prd"
@@ -33,7 +33,7 @@ def initialize_config():
         #EMPIRE_CONNECTION_URL = f"mssql://{username}:{password}@{server}:1433/{database}?driver=ODBC+Driver+17+for+SQL+Server&encrypt=true&trusted_connection=false&trust_server_certificate=true"
 
     # Settings for on cluster
-    if POSTGRESQL_CONNECTION_URL is None:
+    if POSTGRESQL_CONNECTION_URL is None or POSTGRESQL_CONNECTION_URL == "":
         server = "lakehouse-database-cluster-r.lakehouse-database.svc.cluster.local"
         database = "lakehouse"
         username = "lakehouse"
