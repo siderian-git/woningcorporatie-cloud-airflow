@@ -9,6 +9,8 @@ LAKEHOUSE_HIVE_URI = os.environ.get('LAKEHOUSE_HIVE_URI', 'thrift://hive-metasto
 POSTGRESQL_CONNECTION_URL = os.environ.get('POSTGRESQL_CONNECTION_URL', None)
 
 def initialize_config():
+    global EMPIRE_CONNECTION_URL, POSTGRESQL_CONNECTION_URL
+
     if EMPIRE_CONNECTION_URL is None:
         print("EMPIRE_CONNECTION_URL not set in environment variables, using default values. Please set it to run the test against the actual Empire database.")
         server = "aanswqfq3xduxnq4kcx3gun3c4-m72rt5q7lxeubdwmo7ne6bsn6i.datawarehouse.fabric.microsoft.com"
