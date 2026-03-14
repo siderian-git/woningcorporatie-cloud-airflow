@@ -27,24 +27,24 @@ if EMPIRE_CONNECTION_URL is None:
 
     #EMPIRE_CONNECTION_URL = f"mssql://{username}:{password}@{server}:1433/{database}?driver=ODBC+Driver+17+for+SQL+Server&encrypt=true&trusted_connection=false&trust_server_certificate=true"
 
-# # Settings for on cluster
-# if POSTGRESQL_CONNECTION_URL is None:
-#     server = "lakehouse-database-cluster-r.lakehouse-database.svc.cluster.local"
-#     database = "lakehouse"
-#     username = "lakehouse"
-#     password = "VtRer2ulFmndAZspXUhw"
-#     port = 5432
-#     extra_parameters = ""
-#     # Format: postgresql://user:pass@host:5432/dbname
-#     POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}"
-
-# Local settings
+# Settings for on cluster
 if POSTGRESQL_CONNECTION_URL is None:
-    server = "localhost"
+    server = "lakehouse-database-cluster-r.lakehouse-database.svc.cluster.local"
     database = "lakehouse"
     username = "lakehouse"
     password = "VtRer2ulFmndAZspXUhw"
-    port = 9432
-    extra_parameters = "?sslmode=disable"
+    port = 5432
+    extra_parameters = ""
     # Format: postgresql://user:pass@host:5432/dbname
-    POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}{extra_parameters}"
+    POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}"
+
+# # Local settings
+# if POSTGRESQL_CONNECTION_URL is None:
+#     server = "localhost"
+#     database = "lakehouse"
+#     username = "lakehouse"
+#     password = "VtRer2ulFmndAZspXUhw"
+#     port = 9432
+#     extra_parameters = "?sslmode=disable"
+#     # Format: postgresql://user:pass@host:5432/dbname
+#     POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}{extra_parameters}"

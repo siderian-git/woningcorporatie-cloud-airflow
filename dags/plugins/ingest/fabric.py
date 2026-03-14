@@ -18,6 +18,7 @@ class FabricIngestEngine:
     # -------------------------
 
     def _connect(self):
+        print("Connecting to MS SQL Server with ODBC connection string: ", self.conn_string)
         return pyodbc.connect(self.conn_string)
 
     # -------------------------
