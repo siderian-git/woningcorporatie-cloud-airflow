@@ -1,7 +1,8 @@
 from plugins.ingest.fabric import FabricIngestEngine
 from plugins.ingest.postgresql import PostgresqlIngestEngine
 from plugins.ingest.write import WriteEngine
-from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
+#from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
+import plugins.ingest.config as config
 
 import json
 
@@ -20,13 +21,13 @@ def test2():
     def get_table(schema_name = "staging", table_name = "eenheid"):
 
         # Print all variables to check if they are loaded correctly
-        print("EMPIRE_CONNECTION_URL:", EMPIRE_CONNECTION_URL)
-        print("LAKEHOUSE_URL:", LAKEHOUSE_URL)
-        print("LAKEHOUSE_S3_ACCESS_KEY:", LAKEHOUSE_S3_ACCESS_KEY)
-        print("LAKEHOUSE_S3_SECRET_KEY:", LAKEHOUSE_S3_SECRET_KEY)
-        
+        print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
+        print("LAKEHOUSE_URL:", config.LAKEHOUSE_URL)
+        print("LAKEHOUSE_S3_ACCESS_KEY:", config.LAKEHOUSE_S3_ACCESS_KEY)
+        print("LAKEHOUSE_S3_SECRET_KEY:", config.LAKEHOUSE_S3_SECRET_KEY)
 
-        odbc_conn_string = EMPIRE_CONNECTION_URL
+
+        odbc_conn_string = config.EMPIRE_CONNECTION_URL
         if odbc_conn_string is None:
             print("Please set the EMPIRE_CONNECTION_URL environment variable to run the test.")
             return
@@ -35,16 +36,16 @@ def test2():
             odbc_conn_string=odbc_conn_string,
         )
         source_write_engine = WriteEngine(
-            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=LAKEHOUSE_URL,
-            bucket=LAKEHOUSE_S3_BUCKET,
+            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=config.LAKEHOUSE_URL,
+            bucket=config.LAKEHOUSE_S3_BUCKET,
         )
         iceberg_write_engine = WriteEngine(
             # hive_uri="thrift://localhost:9083",
-            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=LAKEHOUSE_URL,
+            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=config.LAKEHOUSE_URL,
         )
 
         # ingest_table("empire", "[staging].[eenheid]", "id")
@@ -78,14 +79,14 @@ def test2():
     @task()
     def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
         postgresql_ingest_engine = PostgresqlIngestEngine(
-            connection_url=POSTGRESQL_CONNECTION_URL,
+            connection_url=config.POSTGRESQL_CONNECTION_URL,
             batch_size=100000
         )
         iceberg_write_engine = WriteEngine(
             hive_uri="thrift://localhost:9083",
-            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=LAKEHOUSE_URL,
+            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=config.LAKEHOUSE_URL,
         )
 
         # ingest_table("empire", "[staging].[eenheid]", "id")
