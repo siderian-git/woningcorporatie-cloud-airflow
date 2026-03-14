@@ -2,7 +2,6 @@ from plugins.ingest.fabric import FabricIngestEngine
 from plugins.ingest.postgresql import PostgresqlIngestEngine
 from plugins.ingest.write import WriteEngine
 #from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
-import plugins.ingest.config as config
 
 import json
 
@@ -16,6 +15,7 @@ from airflow.sdk import dag, task
     tags=["test2"],
 )
 def test2():
+    import plugins.ingest.config as config
 
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
