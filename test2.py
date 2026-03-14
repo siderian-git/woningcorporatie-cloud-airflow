@@ -28,12 +28,12 @@ def test2():
         fabric_ingest_engine = FabricIngestEngine(
             odbc_conn_string=odbc_conn_string,
         )
-        # source_write_engine = WriteEngine(
-        #     s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
-        #     s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
-        #     s3_endpoint=LAKEHOUSE_URL,
-        #     bucket=LAKEHOUSE_S3_BUCKET,
-        # )
+        source_write_engine = WriteEngine(
+            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=LAKEHOUSE_URL,
+            bucket=LAKEHOUSE_S3_BUCKET,
+        )
         iceberg_write_engine = WriteEngine(
             # hive_uri="thrift://localhost:9083",
             s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
@@ -47,13 +47,13 @@ def test2():
         schema_name = "staging"
 
         print("Table ingest: ",table_name)
-        batch_stream = fabric_ingest_engine.ingest_partitioned(
+        arrow_table = fabric_ingest_engine.ingest_partitioned(
             source=source_name,
             schema=schema_name,
-            table=table_name,
-            partitions=6,
+            table=table_name, 
+            partitions=6
         )
-        if batch_stream is not None:
+        if arrow_table is not None:
             # print("Testing write to source layer (arrow dataset)...")
             # source_write_engine.write_arrow_dataset(
             #     layer = layer_name,
@@ -63,13 +63,12 @@ def test2():
             #     arrow_table=arrow_table
             # )
             print("Write to iceberg...")
+            namespace = "staging"
             iceberg_write_engine.write_to_iceberg(
-                namespace="staging",
+                namespace=namespace,
                 table_name=table_name,
-                batch_iter=batch_stream,
+                arrow_table=arrow_table,
             )
-
-
         else:
             print("No data ingested for table: ", table_name)
 
@@ -116,7 +115,7 @@ def test2():
         # {"schema": "staging", "table": "eenheid_cluster"},
         # {"schema": "staging", "table": "cluster"},
         {"schema": "staging", "table": "grootboekmutatie"},
-        # {"schema": "staging", "table": "grootboekrekening"},
+        {"schema": "staging", "table": "grootboekrekening"},
     ]
 
     for table_info in list_of_tables:

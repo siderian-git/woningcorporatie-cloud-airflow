@@ -88,8 +88,8 @@ class FabricIngestEngine:
         cursor.execute(query)
 
         columns = [col[0] for col in cursor.description]
-        ncols = len(columns)
 
+        batches: list[pa.RecordBatch] = []
         target_schema: pa.Schema | None = None
 
         try:
@@ -98,72 +98,106 @@ class FabricIngestEngine:
                 if not rows:
                     break
 
-                # column-wise extraction (fast, low memory)
-                cols = list(zip(*rows))
-
-                arrays = [
-                    pa.array(col_values)
-                    for col_values in cols
-                ]
-
-                batch = pa.RecordBatch.from_arrays(arrays, names=columns)
+                pyrows = [dict(zip(columns, r)) for r in rows]
+                batch = pa.RecordBatch.from_pylist(pyrows)
 
                 if target_schema is None:
+                    # Start with the first batch schema, but immediately widen decimals to avoid later overflow.
                     target_schema = self._promote_decimal_fields(batch.schema, precision=38)
+                    # Also avoid locking in null-typed columns.
                     target_schema = self._promote_null_fields(target_schema, batch.schema, null_fallback=pa.string())
                     batch = batch.cast(target_schema)
-
                 else:
+                    # If locked schema has null columns, promote to incoming types (or fallback)
                     target_schema = self._promote_null_fields(target_schema, batch.schema, null_fallback=pa.string())
+                    # Always keep decimals wide enough
                     target_schema = self._promote_decimal_fields(target_schema, precision=38)
 
-                    if batch.schema != target_schema:
+                    try:
                         batch = batch.cast(target_schema)
+                    except pa.ArrowInvalid as e:
+                        if "Decimal value does not fit in precision" in str(e):
+                            target_schema = self._promote_decimal_fields(target_schema, precision=38)
+                            batch = batch.cast(target_schema)
+                        else:
+                            raise
 
-                yield batch
-
+                batches.append(batch)
         finally:
             cursor.close()
             conn.close()
-                
+
+        if not batches:
+            return None
+
+        # Early batches may have been cast to an older schema; unify all to final schema.
+        if target_schema is not None:
+            batches = [b.cast(target_schema) if b.schema != target_schema else b for b in batches]
+
+        return pa.Table.from_batches(batches, schema=target_schema)
+    
     # -------------------------
     # Public API
     # -------------------------
 
     def ingest_full_table(self, source, schema, table):
+
+        # fix schema and table names for MS SQL Server -> include brackets if not already present
         if schema is not None:
-            schema = f"[{schema.strip('[]')}]"
-        table = f"[{table.strip('[]')}]"
+            if not schema.startswith('['):
+                schema = f'[{schema}]'
+            if not schema.endswith(']'):
+                schema = f'{schema}]'
+        if not table.startswith('['):
+            table = f'[{table}]'
+        if not table.endswith(']'):
+            table = f'{table}]'
+        full_table = f"{schema}.{table}" if schema is not None else table
 
-        full_table = f"{schema}.{table}" if schema else table
         query = f"SELECT * FROM {full_table}"
+        arrow_table = self._stream_query_to_arrow(query)
 
-        return self._stream_query_to_arrow(query)
+        if arrow_table:
+            return arrow_table
+        else:
+            return None
+
 
     def ingest_partitioned(self, source, schema, table, partitions=4):
-
-        pk = self.get_pk_column(schema, table)
+        pk = self.get_pk_column(schema,table)
 
         if not pk:
-            print(f"No primary key found for table {table}, ingesting full table.")
-            yield from self.ingest_full_table(source, schema, table)
-            return
+            # fallback
+            print(f"No primary key found for table {table}, ingesting full table without partitioning.")
+            arrow_table = self.ingest_full_table(source, schema, table)
+            return arrow_table
 
-        schema = f"[{schema.strip('[]')}]"
-        table = f"[{table.strip('[]')}]"
-        pk = f"[{pk.strip('[]')}]"
+        # fix schema and table names for MS SQL Server -> include brackets if not already present
+        if schema is not None:
+            if not schema.startswith('['):
+                schema = f'[{schema}]'
+            if not schema.endswith(']'):
+                schema = f'{schema}]'
+        if not table.startswith('['):
+            table = f'[{table}]'
+        if not table.endswith(']'):
+            table = f'{table}]'
+        full_table = f"{schema}.{table}" if schema is not None else table
 
-        full_table = f"{schema}.{table}"
+        if not pk.startswith('['):
+            pk = f'[{pk}]'
+        if not pk.endswith(']'):
+            pk = f'{pk}]'
 
-        min_id, max_id = self.get_min_max_pk(schema, table, pk)
+        min_id, max_id = self.get_min_max_pk(table, pk)
 
         if min_id is None:
             return
 
         step = math.ceil((max_id - min_id) / partitions)
 
+        print(f"Partitioning table {full_table} on PK {pk} with range {min_id} - {max_id} into {partitions} partitions (step size: {step})")
         for i in range(partitions):
-
             start = min_id + i * step
             end = min(start + step - 1, max_id)
 
@@ -173,6 +207,10 @@ class FabricIngestEngine:
             WHERE {pk} BETWEEN {start} AND {end}
             """
 
-            print(f"Partition {i+1}/{partitions}: {start}-{end}")
+            print(f"Ingesting partition {i+1}/{partitions} for table {full_table}: {pk} BETWEEN {start} AND {end}")
+            arrow_table = self._stream_query_to_arrow(query)
 
-            yield from self._stream_query_to_arrow(query)
+        if arrow_table:
+            return arrow_table
+        else:
+            return None

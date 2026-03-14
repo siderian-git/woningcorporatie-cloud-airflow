@@ -44,95 +44,87 @@ class WriteEngine:
     # Write to Iceberg table
     # -------------------------
 
-    def write_to_iceberg(self,namespace,table_name,arrow_table,partition_field : str = None, overwrite_partition_field_value: int = None):
-        def _cast_null_columns(arrow_table: pa.Table, *, null_fallback: pa.DataType = pa.string()) -> pa.Table:
-            """
-            Iceberg doesn't support pa.null() columns. Cast them to a concrete type.
-            Default fallback is string (safe, but you can choose bool/int if you know the domain).
-            """
-            schema = arrow_table.schema
-            null_col_names = [f.name for f in schema if pa.types.is_null(f.type)]
-            if not null_col_names:
-                return arrow_table
-
-            casted = arrow_table
-            for name in null_col_names:
-                # Produce an all-null array with the new type
-                n = casted.num_rows
-                arr = pa.array([None] * n, type=null_fallback)
-                casted = casted.set_column(casted.schema.get_field_index(name), name, arr)
-
-            return casted
-
-        warnings.filterwarnings(
-            "ignore",
-            message=r"Delete operation did not match any records",
-            category=UserWarning,
-        )
-
-        TARGET_NAMESPACE = namespace
-        TARGET_TABLENAME = table_name
-
-        # Iceberg v2 doesn't allow pa.null() columns
-        arrow_table = _cast_null_columns(arrow_table, null_fallback=pa.string())
+    def write_to_iceberg(
+        self,
+        namespace,
+        table_name,
+        batch_iter,
+        partition_field: str | None = None,
+    ):
 
         catalog = HiveCatalog(
             name="iceberg",
-            uri=self.hive_uri, # "thrift://hive-metastore.hive.svc.cluster.local:9083",
+            uri=self.hive_uri,
             **{
                 "s3.endpoint": self.s3_endpoint,
                 "s3.access-key-id": self.s3_access_key,
                 "s3.secret-access-key": self.s3_secret_key,
                 "py-io-impl": "pyiceberg.io.pyarrow.PyArrowFileIO",
-                "s3.region": "us-east-1",  # required by some S3-compatible storage, even if not used
-            }
+                "s3.region": "us-east-1",
+            },
         )
 
-        # Step 1 - First create namespace if it doesn't exist, then create or load the table
+        identifier = f"{namespace}.{table_name}"
+
+        # Ensure namespace exists
         try:
-            catalog.create_namespace(TARGET_NAMESPACE)
-        except Exception as e:
-            print(f"Namespace {TARGET_NAMESPACE} already exists or error occurred:")
-            print(e)
-            
-        # Step 2 - Create table if it doesn't exist, otherwise load it
-        table : Table = None
+            catalog.create_namespace(namespace)
+        except Exception:
+            pass
+
+        # Drop old table (full load pattern)
         try:
+            catalog.purge_table(identifier)
+            print(f"Purged existing table {identifier}")
+        except Exception:
+            pass
 
-            schema_without_ids = _pyarrow_to_schema_without_ids(arrow_table.schema)
-            schema_with_ids = assign_fresh_schema_ids(schema_without_ids)
+        first_batch = next(batch_iter, None)
+        if first_batch is None:
+            print("No data to ingest")
+            return
 
-            partition_spec = UNPARTITIONED_PARTITION_SPEC
-            if partition_field is not None and partition_field_id is not None:
-                partition_field_id = schema_with_ids.find_field(partition_field).field_id
-                partition_spec=PartitionSpec(PartitionField(source_id=partition_field_id, field_id=1000, transform=IdentityTransform(), name=partition_field))
+        arrow_table = pa.Table.from_batches([first_batch])
 
-            table = catalog.create_table(
-                f"{TARGET_NAMESPACE}.{TARGET_TABLENAME}",
-                schema=schema_with_ids,
-                partition_spec=partition_spec,
+        schema_without_ids = _pyarrow_to_schema_without_ids(arrow_table.schema)
+        schema_with_ids = assign_fresh_schema_ids(schema_without_ids)
+
+        partition_spec = UNPARTITIONED_PARTITION_SPEC
+
+        if partition_field:
+            field_id = schema_with_ids.find_field(partition_field).field_id
+            partition_spec = PartitionSpec(
+                PartitionField(
+                    source_id=field_id,
+                    field_id=1000,
+                    transform=IdentityTransform(),
+                    name=partition_field,
+                )
             )
-            print("Table created successfully.")
-        except Exception as e:
-            print(f"Table already exists or error occurred")
-            print(e)
 
-        if table is None:
-            table = catalog.load_table(f"{TARGET_NAMESPACE}.{TARGET_TABLENAME}")
+        table = catalog.create_table(
+            identifier,
+            schema=schema_with_ids,
+            partition_spec=partition_spec,
+        )
 
-        # Step 3 - Write data to the table, either by creating a new one or overwriting existing data
-        if table is not None:
-            overwrite_filter = ALWAYS_TRUE
-            if overwrite_partition_field_value is not None:
-                overwrite_filter = EqualTo(partition_field, overwrite_partition_field_value)
+        print(f"Created Iceberg table {identifier}")
 
-            table.overwrite(arrow_table, 
-                            overwrite_filter=overwrite_filter
-                            )
-            print("Data written successfully.")
-        else:
-            print("Failed to write data: table not loaded")
+        # Convert generator → Arrow batch reader
+        def batch_generator():
+            yield first_batch
+            for batch in batch_iter:
+                yield batch
 
+        reader = pa.RecordBatchReader.from_batches(
+            first_batch.schema,
+            batch_generator(),
+        )
+
+        table.append(reader)
+
+        print("Finished streaming append to Iceberg")
+        
     # -------------------------
     # Write to S3 dataset
     # -------------------------
@@ -190,4 +182,27 @@ class WriteEngine:
         )
 
         catalog.create_namespace(TARGET_NAMESPACE)
-            
+
+    def write_arrow_batches(self, layer, source, schema, table_name, batch_iter):
+
+        base_dir = f"{self.bucket}/{layer}/{source}/{schema}/{table_name}/"
+
+        file_options = ds.ParquetFileFormat().make_write_options(compression="snappy")
+
+        writer = None
+
+        for batch in batch_iter:
+
+            table = pa.Table.from_batches([batch])
+
+            ds.write_dataset(
+                table,
+                base_dir=base_dir,
+                filesystem=self.s3,
+                format="parquet",
+                max_rows_per_file=self.max_rows_per_file,
+                file_options=file_options,
+                existing_data_behavior="overwrite_or_ignore",
+                create_dir=False,
+                use_threads=True,
+            )            
