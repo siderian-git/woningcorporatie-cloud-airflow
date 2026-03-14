@@ -19,6 +19,13 @@ def test2():
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
 
+        # Print all variables to check if they are loaded correctly
+        print("EMPIRE_CONNECTION_URL:", EMPIRE_CONNECTION_URL)
+        print("LAKEHOUSE_URL:", LAKEHOUSE_URL)
+        print("LAKEHOUSE_S3_ACCESS_KEY:", LAKEHOUSE_S3_ACCESS_KEY)
+        print("LAKEHOUSE_S3_SECRET_KEY:", LAKEHOUSE_S3_SECRET_KEY)
+        
+
         odbc_conn_string = EMPIRE_CONNECTION_URL
         if odbc_conn_string is None:
             print("Please set the EMPIRE_CONNECTION_URL environment variable to run the test.")
@@ -34,7 +41,7 @@ def test2():
             bucket=LAKEHOUSE_S3_BUCKET,
         )
         iceberg_write_engine = WriteEngine(
-            hive_uri="thrift://localhost:9083",
+            # hive_uri="thrift://localhost:9083",
             s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
             s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
             s3_endpoint=LAKEHOUSE_URL,
