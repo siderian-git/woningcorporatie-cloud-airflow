@@ -158,6 +158,7 @@ class FabricIngestEngine:
 
         if not pk:
             # fallback
+            print(f"No primary key found for table {table}, ingesting full table without partitioning.")
             arrow_table = self.ingest_full_table(source, schema, table)
             return arrow_table
 
@@ -185,6 +186,7 @@ class FabricIngestEngine:
 
         step = math.ceil((max_id - min_id) / partitions)
 
+        print(f"Partitioning table {full_table} on PK {pk} with range {min_id} - {max_id} into {partitions} partitions (step size: {step})")
         for i in range(partitions):
             start = min_id + i * step
             end = min(start + step - 1, max_id)
@@ -195,6 +197,7 @@ class FabricIngestEngine:
             WHERE {pk} BETWEEN {start} AND {end}
             """
 
+            print(f"Ingesting partition {i+1}/{partitions} for table {full_table}: {pk} BETWEEN {start} AND {end}")
             arrow_table = self._stream_query_to_arrow(query)
 
         if arrow_table:

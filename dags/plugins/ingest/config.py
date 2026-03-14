@@ -5,7 +5,7 @@ LAKEHOUSE_URL = os.environ.get('LAKEHOUSE_URL', 'https://core.fuga.cloud:8080')
 LAKEHOUSE_S3_BUCKET = os.environ.get('LAKEHOUSE_S3_BUCKET', 'lakehouse')
 LAKEHOUSE_S3_ACCESS_KEY = os.environ.get('LAKEHOUSE_S3_ACCESS_KEY', 'c16da65e6c4a489d98d9967dca8cdd0f')
 LAKEHOUSE_S3_SECRET_KEY = os.environ.get('LAKEHOUSE_S3_SECRET_KEY', 'af989149f3d142ef8b2d31daac8cf35c')
-LAKEHOUSE_HIVE_URI = os.environ.get('LAKEHOUSE_HIVE_URI', 'thrift://hive-metastore.lakehouse.svc.cluster.local:9083')
+LAKEHOUSE_HIVE_URI = os.environ.get('LAKEHOUSE_HIVE_URI', 'thrift://hive-metastore.hive.svc.cluster.local:9083')
 POSTGRESQL_CONNECTION_URL = os.environ.get('POSTGRESQL_CONNECTION_URL', None)
 
 if EMPIRE_CONNECTION_URL is None or EMPIRE_CONNECTION_URL == "":

@@ -18,7 +18,7 @@ class WriteEngine:
 
     def __init__(
         self,
-        hive_uri: str = "thrift://hive-metastore.lakehouse.svc.cluster.local:9083", # Local after portforward: "thrift://localhost:9083"
+        hive_uri: str = "thrift://hive-metastore.hive.svc.cluster.local:9083", # Local after portforward: "thrift://localhost:9083"
         s3_endpoint: str = None,
         s3_access_key: str = None,
         s3_secret_key: str = None,
@@ -78,7 +78,7 @@ class WriteEngine:
 
         catalog = HiveCatalog(
             name="iceberg",
-            uri=self.hive_uri, # "thrift://hive-metastore.lakehouse.svc.cluster.local:9083",
+            uri=self.hive_uri, # "thrift://hive-metastore.hive.svc.cluster.local:9083",
             **{
                 "s3.endpoint": self.s3_endpoint,
                 "s3.access-key-id": self.s3_access_key,
@@ -179,7 +179,7 @@ class WriteEngine:
 
         catalog = HiveCatalog(
             name="iceberg",
-            uri=self.hive_uri, # "thrift://hive-metastore.lakehouse.svc.cluster.local:9083",
+            uri=self.hive_uri, # "thrift://hive-metastore.hive.svc.cluster.local:9083",
             **{
                 "s3.endpoint": self.s3_endpoint,
                 "s3.access-key-id": self.s3_access_key,

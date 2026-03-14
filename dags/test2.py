@@ -66,6 +66,9 @@ def test2():
                 table_name=table_name,
                 arrow_table=arrow_table,
             )
+        else:
+            print("No data ingested for table: ", table_name)
+
     @task()
     def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
         postgresql_ingest_engine = PostgresqlIngestEngine(
@@ -73,7 +76,7 @@ def test2():
             batch_size=100000
         )
         iceberg_write_engine = WriteEngine(
-            hive_uri="thrift://localhost:9083",
+            # hive_uri="thrift://localhost:9083",
             s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
             s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
             s3_endpoint=LAKEHOUSE_URL,
