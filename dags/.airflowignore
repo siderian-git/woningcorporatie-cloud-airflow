@@ -1,4 +1,5 @@
-^plugins/.*$
+plugins/.*
+plugins/ingest/.*
 requirements.txt
 env
 .venv
