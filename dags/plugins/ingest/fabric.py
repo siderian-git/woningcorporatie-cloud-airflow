@@ -52,6 +52,16 @@ class FabricIngestEngine:
     # Core streaming extract
     # -------------------------
 
+    def _promote_decimal_fields(self, schema: pa.Schema, *, precision: int = 38) -> pa.Schema:
+        fields = []
+        for f in schema:
+            if pa.types.is_decimal(f.type):
+                # Keep scale, widen precision
+                fields.append(pa.field(f.name, pa.decimal128(precision, f.type.scale), nullable=f.nullable, metadata=f.metadata))
+            else:
+                fields.append(f)
+        return pa.schema(fields, metadata=schema.metadata)
+
     def _stream_query_to_arrow(self, query):
         conn = self._connect()
         cursor = conn.cursor()
@@ -68,16 +78,21 @@ class FabricIngestEngine:
                 if not rows:
                     break
 
-                # Build rows as dicts in a stable column order
                 pyrows = [dict(zip(columns, r)) for r in rows]
                 batch = pa.RecordBatch.from_pylist(pyrows)
 
                 if target_schema is None:
-                    # Lock schema based on first batch to avoid per-batch inference drift
                     target_schema = batch.schema
                 else:
-                    # Align to the locked schema (handles int<->float, null columns, etc.)
-                    batch = batch.cast(target_schema)
+                    try:
+                        batch = batch.cast(target_schema)
+                    except pa.ArrowInvalid as e:
+                        # Handle: "Decimal value does not fit in precision ..."
+                        if "Decimal value does not fit in precision" in str(e):
+                            target_schema = self._promote_decimal_fields(target_schema, precision=38)
+                            batch = batch.cast(target_schema)
+                        else:
+                            raise
 
                 batches.append(batch)
         finally:
@@ -88,7 +103,7 @@ class FabricIngestEngine:
             return None
 
         return pa.Table.from_batches(batches, schema=target_schema)
-
+    
     # -------------------------
     # Public API
     # -------------------------

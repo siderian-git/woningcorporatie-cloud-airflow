@@ -1,8 +1,7 @@
 from plugins.ingest.fabric import FabricIngestEngine
 from plugins.ingest.postgresql import PostgresqlIngestEngine
 from plugins.ingest.write import WriteEngine
-#from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
-import plugins.ingest.config as config
+from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
 
 import json
 
@@ -18,17 +17,7 @@ from airflow.sdk import dag, task
 def test2():
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
-        t1,t2 = config.initialize_config()
-        print("EMPIRE_CONNECTION_URL (get_table):", config.EMPIRE_CONNECTION_URL)
-        print("t1:", t1)
-        # Print all variables to check if they are loaded correctly
-        print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
-        print("LAKEHOUSE_URL:", config.LAKEHOUSE_URL)
-        print("LAKEHOUSE_S3_ACCESS_KEY:", config.LAKEHOUSE_S3_ACCESS_KEY)
-        print("LAKEHOUSE_S3_SECRET_KEY:", config.LAKEHOUSE_S3_SECRET_KEY)
-
-
-        odbc_conn_string = config.EMPIRE_CONNECTION_URL
+        odbc_conn_string = EMPIRE_CONNECTION_URL
         if odbc_conn_string is None:
             print("Please set the EMPIRE_CONNECTION_URL environment variable to run the test.")
             return
@@ -37,16 +26,16 @@ def test2():
             odbc_conn_string=odbc_conn_string,
         )
         source_write_engine = WriteEngine(
-            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=config.LAKEHOUSE_URL,
-            bucket=config.LAKEHOUSE_S3_BUCKET,
+            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=LAKEHOUSE_URL,
+            bucket=LAKEHOUSE_S3_BUCKET,
         )
         iceberg_write_engine = WriteEngine(
             # hive_uri="thrift://localhost:9083",
-            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=config.LAKEHOUSE_URL,
+            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=LAKEHOUSE_URL,
         )
 
         # ingest_table("empire", "[staging].[eenheid]", "id")
@@ -54,7 +43,7 @@ def test2():
         source_name = "empire"
         schema_name = "staging"
 
-        print("Testing ingest: ",table_name)
+        print("Table ingest: ",table_name)
         arrow_table = fabric_ingest_engine.ingest_partitioned(
             source=source_name,
             schema=schema_name,
@@ -70,7 +59,7 @@ def test2():
             #     table_name = table_name, 
             #     arrow_table=arrow_table
             # )
-            print("Testing write to iceberg...")
+            print("Write to iceberg...")
             namespace = "staging"
             iceberg_write_engine.write_to_iceberg(
                 namespace=namespace,
@@ -79,19 +68,15 @@ def test2():
             )
     @task()
     def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
-        t1,t2 = config.initialize_config()
-        print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
-        print("t1:", t1)
-
         postgresql_ingest_engine = PostgresqlIngestEngine(
-            connection_url=config.POSTGRESQL_CONNECTION_URL,
+            connection_url=POSTGRESQL_CONNECTION_URL,
             batch_size=100000
         )
         iceberg_write_engine = WriteEngine(
             hive_uri="thrift://localhost:9083",
-            s3_access_key=config.LAKEHOUSE_S3_ACCESS_KEY,
-            s3_secret_key=config.LAKEHOUSE_S3_SECRET_KEY,
-            s3_endpoint=config.LAKEHOUSE_URL,
+            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=LAKEHOUSE_URL,
         )
 
         # ingest_table("empire", "[staging].[eenheid]", "id")
@@ -99,7 +84,7 @@ def test2():
         source_name = "vera"
         schema_name = "staging"
 
-        print("Testing ingest: ",table_name)
+        print("Table ingest: ",table_name)
         arrow_table = postgresql_ingest_engine.ingest_partitioned(
             source=source_name,
             schema=schema_name,
@@ -107,7 +92,7 @@ def test2():
             partitions=6
         )
         if arrow_table is not None:
-            print("Testing write to iceberg...")
+            print("Write to iceberg...")
             namespace = "staging"
             iceberg_write_engine.write_to_iceberg(
                 namespace=namespace,
