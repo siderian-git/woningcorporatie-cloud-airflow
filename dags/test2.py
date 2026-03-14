@@ -18,7 +18,9 @@ from airflow.sdk import dag, task
 def test2():
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
-        config.initialize_config()
+        t1,t2 = config.initialize_config()
+        print("EMPIRE_CONNECTION_URL (get_table):", config.EMPIRE_CONNECTION_URL)
+        print("t1:", t1)
         # Print all variables to check if they are loaded correctly
         print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
         print("LAKEHOUSE_URL:", config.LAKEHOUSE_URL)
