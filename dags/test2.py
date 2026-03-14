@@ -15,10 +15,10 @@ from airflow.sdk import dag, task
     tags=["test2"],
 )
 def test2():
-    import plugins.ingest.config as config
-
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
+        import plugins.ingest.config as config
+
 
         # Print all variables to check if they are loaded correctly
         print("EMPIRE_CONNECTION_URL:", config.EMPIRE_CONNECTION_URL)
@@ -78,6 +78,8 @@ def test2():
             )
     @task()
     def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
+        import plugins.ingest.config as config
+
         postgresql_ingest_engine = PostgresqlIngestEngine(
             connection_url=config.POSTGRESQL_CONNECTION_URL,
             batch_size=100000
