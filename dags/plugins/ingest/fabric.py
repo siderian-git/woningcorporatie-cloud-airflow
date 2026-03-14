@@ -62,6 +62,26 @@ class FabricIngestEngine:
                 fields.append(f)
         return pa.schema(fields, metadata=schema.metadata)
 
+    def _promote_null_fields(self, locked: pa.Schema, incoming: pa.Schema, *, null_fallback: pa.DataType = pa.string()) -> pa.Schema:
+        """
+        If the locked schema has columns typed as null (because first batch was all NULL),
+        promote them to the incoming type (or a fallback) so later casts succeed.
+        """
+        incoming_by_name = {f.name: f for f in incoming}
+        out_fields = []
+        changed = False
+
+        for f in locked:
+            if pa.types.is_null(f.type):
+                inf = incoming_by_name.get(f.name)
+                new_type = inf.type if inf is not None and not pa.types.is_null(inf.type) else null_fallback
+                out_fields.append(pa.field(f.name, new_type, nullable=True, metadata=f.metadata))
+                changed = True
+            else:
+                out_fields.append(f)
+
+        return pa.schema(out_fields, metadata=locked.metadata) if changed else locked
+
     def _stream_query_to_arrow(self, query):
         conn = self._connect()
         cursor = conn.cursor()
@@ -84,10 +104,12 @@ class FabricIngestEngine:
                 if target_schema is None:
                     target_schema = batch.schema
                 else:
+                    # Fix locked null columns before casting (string -> null is not supported)
+                    target_schema = self._promote_null_fields(target_schema, batch.schema, null_fallback=pa.string())
+
                     try:
                         batch = batch.cast(target_schema)
                     except pa.ArrowInvalid as e:
-                        # Handle: "Decimal value does not fit in precision ..."
                         if "Decimal value does not fit in precision" in str(e):
                             target_schema = self._promote_decimal_fields(target_schema, precision=38)
                             batch = batch.cast(target_schema)
