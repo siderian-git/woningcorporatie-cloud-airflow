@@ -19,7 +19,7 @@ def initialize_config():
         username = "siderian-svc@omniawonen.nl"
         password = "78Pxyvoha2m1OhrFNsvktraCpSP"
         conn_str = (
-            "DRIVER={ODBC Driver 17 for SQL Server};"
+            "DRIVER={ODBC Driver 18 for SQL Server};"
             f"SERVER={server};"
             f"DATABASE={database};"
             f"UID={username};"
