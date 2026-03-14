@@ -1,0 +1,5 @@
+pyodbc
+pyarrow
+boto3
+pyiceberg[s3fs,hive]
+psycopg

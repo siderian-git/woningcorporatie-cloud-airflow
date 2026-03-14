@@ -1,0 +1,8 @@
+plugins/.*
+requirements.txt
+env
+.venv
+.vscode
+__pycache__
+.gitignore
+
