@@ -1,7 +1,7 @@
 import math
 from typing import Optional
 
-import psycopg
+import psycopg2
 import pyarrow as pa
 
 
@@ -20,7 +20,7 @@ class PostgresqlIngestEngine:
 
     def _connect(self):
         # psycopg3 connection string: "postgresql://user:pass@host:5432/dbname"
-        return psycopg.connect(self.conn_string)
+        return psycopg2.connect(self.conn_string)
 
     # -------------------------
     # Metadata helpers
