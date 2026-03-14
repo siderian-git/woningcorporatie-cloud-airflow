@@ -1,6 +1,4 @@
-plugins/.*
-plugins/ingest/.*
-plugins/ingest/test.py
+plugins/
 requirements.txt
 env
 .venv
