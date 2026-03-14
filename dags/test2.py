@@ -8,6 +8,9 @@ import json
 import pendulum
 
 from airflow.sdk import dag, task
+
+# Version 0.1: Initial version, testing ingest and write for a single table from both sources.
+
 @dag(
     schedule=None,
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),

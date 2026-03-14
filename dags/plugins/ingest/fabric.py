@@ -102,10 +102,16 @@ class FabricIngestEngine:
                 batch = pa.RecordBatch.from_pylist(pyrows)
 
                 if target_schema is None:
-                    target_schema = batch.schema
-                else:
-                    # Fix locked null columns before casting (string -> null is not supported)
+                    # Start with the first batch schema, but immediately widen decimals to avoid later overflow.
+                    target_schema = self._promote_decimal_fields(batch.schema, precision=38)
+                    # Also avoid locking in null-typed columns.
                     target_schema = self._promote_null_fields(target_schema, batch.schema, null_fallback=pa.string())
+                    batch = batch.cast(target_schema)
+                else:
+                    # If locked schema has null columns, promote to incoming types (or fallback)
+                    target_schema = self._promote_null_fields(target_schema, batch.schema, null_fallback=pa.string())
+                    # Always keep decimals wide enough
+                    target_schema = self._promote_decimal_fields(target_schema, precision=38)
 
                     try:
                         batch = batch.cast(target_schema)
@@ -123,6 +129,10 @@ class FabricIngestEngine:
 
         if not batches:
             return None
+
+        # Early batches may have been cast to an older schema; unify all to final schema.
+        if target_schema is not None:
+            batches = [b.cast(target_schema) if b.schema != target_schema else b for b in batches]
 
         return pa.Table.from_batches(batches, schema=target_schema)
     
