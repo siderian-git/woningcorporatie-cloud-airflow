@@ -237,24 +237,26 @@ class WriteEngine:
         # 3. Add a "remove orophan files API": ALTER TABLE test_table EXECUTE remove_orphan_files(retention_threshold => '7d');
         # 4. Add Analyze table: ANALYZE table_name;
 
+        executor = TrinoSqlExecutor()
+
         try:
             print(f"Running post-write maintenance for {identifier}: optimize")
-            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE optimize")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE optimize")
         except Exception as e:
             print(f"Warning: optimize failed for {identifier}: {e}")
         try:
             print(f"Running post-write maintenance for {identifier}: expire_snapshots")
-            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE expire_snapshots(retention_threshold => '7d')")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE expire_snapshots(retention_threshold => '7d')")
         except Exception as e:
             print(f"Warning: expire_snapshots failed for {identifier}: {e}")
         try:
             print(f"Running post-write maintenance for {identifier}: remove_orphan_files")
-            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE remove_orphan_files(retention_threshold => '7d')")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE remove_orphan_files(retention_threshold => '7d')")
         except Exception as e:
             print(f"Warning: remove_orphan_files failed for {identifier}: {e}")
         try:
             print(f"Running post-write maintenance for {identifier}: ANALYZE")
-            TrinoSqlExecutor.execute(f"ANALYZE {identifier}")
+            executor.execute(f"ANALYZE {identifier}")
         except Exception as e:
             print(f"Warning: ANALYZE failed for {identifier}: {e}")
 
