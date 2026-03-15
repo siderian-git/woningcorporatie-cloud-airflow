@@ -263,3 +263,17 @@ class WriteEngine:
             print(f"Warning: ANALYZE failed for {identifier}: {e}")
 
 
+    def write_trino_to_postgresql(self, source_catalog : str = "iceberg", source_schema : str = None, source_table : str = None, target_catalog : str = "lakehouse", target_schema : str = None, target_table : str = None):
+        source_table_name = f"{source_schema}.{source_table}"
+        target_table_name = f"{target_schema}.{target_table}"
+
+        executor = TrinoSqlExecutor()
+        settings = Settings()
+
+        try:
+            print(f"Drop table: {target_table_name}")
+            executor.execute(f"DROP TABLE IF EXISTS {target_catalog}.{target_table_name};", settings=settings)
+            print(f"Create table: {target_table_name} from {source_table_name}")
+            executor.execute(f"CREATE TABLE {target_catalog}.{target_table_name} AS SELECT * FROM {source_catalog}.{source_table_name};", settings=settings)
+        except Exception as e:
+            print(f"Error: write failed to {target_table_name}: {e}")

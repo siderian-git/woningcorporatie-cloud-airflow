@@ -19,5 +19,3 @@ LAKEHOUSE_POSTGRESQL_CONNECTION_URL = os.environ.get('POSTGRESQL_CONNECTION_URL'
 #     # Format: postgresql://user:pass@host:5432/dbname
 #     POSTGRESQL_CONNECTION_URL = f"postgresql://{username}:{password}@{server}:{port}/{database}{extra_parameters}"
 
-
-
