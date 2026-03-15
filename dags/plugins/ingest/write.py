@@ -257,8 +257,8 @@ class WriteEngine:
         except Exception as e:
             print(f"Warning: remove_orphan_files failed for {identifier}: {e}")
         try:
-            print(f"Running post-write maintenance for {identifier}: ANALYZE", settings=settings)
-            executor.execute(f"ANALYZE {identifier}")
+            print(f"Running post-write maintenance for {identifier}: ANALYZE")
+            executor.execute(f"ANALYZE {identifier}", settings=settings)
         except Exception as e:
             print(f"Warning: ANALYZE failed for {identifier}: {e}")
 
