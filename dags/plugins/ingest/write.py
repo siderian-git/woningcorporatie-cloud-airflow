@@ -17,6 +17,7 @@ import pyarrow.fs as fs
 import pyarrow.parquet as pq
 # Trino
 from plugins.db.trino import TrinoSqlExecutor
+from plugins.db.settings import Settings
 
 class WriteEngine:
 
@@ -238,24 +239,25 @@ class WriteEngine:
         # 4. Add Analyze table: ANALYZE table_name;
 
         executor = TrinoSqlExecutor()
+        settings = Settings()
 
         try:
             print(f"Running post-write maintenance for {identifier}: optimize")
-            executor.execute(f"ALTER TABLE {identifier} EXECUTE optimize")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE optimize", settings=settings)
         except Exception as e:
             print(f"Warning: optimize failed for {identifier}: {e}")
         try:
             print(f"Running post-write maintenance for {identifier}: expire_snapshots")
-            executor.execute(f"ALTER TABLE {identifier} EXECUTE expire_snapshots(retention_threshold => '7d')")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE expire_snapshots(retention_threshold => '7d')", settings=settings)
         except Exception as e:
             print(f"Warning: expire_snapshots failed for {identifier}: {e}")
         try:
             print(f"Running post-write maintenance for {identifier}: remove_orphan_files")
-            executor.execute(f"ALTER TABLE {identifier} EXECUTE remove_orphan_files(retention_threshold => '7d')")
+            executor.execute(f"ALTER TABLE {identifier} EXECUTE remove_orphan_files(retention_threshold => '7d')", settings=settings)
         except Exception as e:
             print(f"Warning: remove_orphan_files failed for {identifier}: {e}")
         try:
-            print(f"Running post-write maintenance for {identifier}: ANALYZE")
+            print(f"Running post-write maintenance for {identifier}: ANALYZE", settings=settings)
             executor.execute(f"ANALYZE {identifier}")
         except Exception as e:
             print(f"Warning: ANALYZE failed for {identifier}: {e}")
