@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from trino.dbapi import connect
 
-from settings import Settings
+from plugins.db.settings import Settings
 
 
 class TrinoSqlExecutor:
