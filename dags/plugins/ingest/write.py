@@ -40,6 +40,7 @@ class WriteEngine:
             )
 
 
+
     # -------------------------
     # Write to Iceberg table
     # -------------------------
@@ -51,6 +52,19 @@ class WriteEngine:
         batch_iter,
         partition_field: str | None = None,
     ):
+        def _cast_null_columns(table: pa.Table, *, null_fallback: pa.DataType = pa.string()) -> pa.Table:
+            schema = table.schema
+            null_fields = [f for f in schema if pa.types.is_null(f.type)]
+            if not null_fields:
+                return table
+
+            out = table
+            for f in null_fields:
+                idx = out.schema.get_field_index(f.name)
+                arr = pa.array([None] * out.num_rows, type=null_fallback)
+                out = out.set_column(idx, f.name, arr)
+            return out
+
 
         catalog = HiveCatalog(
             name="iceberg",
@@ -84,9 +98,12 @@ class WriteEngine:
             print("No data to ingest")
             return
 
-        arrow_table = pa.Table.from_batches([first_batch])
+        # Lock the Arrow schema we will append with (based on first batch)
+        locked_arrow_schema = first_batch.schema
 
-        schema_without_ids = _pyarrow_to_schema_without_ids(arrow_table.schema)
+        first_table = _cast_null_columns(pa.Table.from_batches([first_batch]))
+
+        schema_without_ids = _pyarrow_to_schema_without_ids(first_table.schema)
         schema_with_ids = assign_fresh_schema_ids(schema_without_ids)
 
         partition_spec = UNPARTITIONED_PARTITION_SPEC
@@ -110,21 +127,21 @@ class WriteEngine:
 
         print(f"Created Iceberg table {identifier}")
 
-        # Convert generator → Arrow batch reader
-        def batch_generator():
-            yield first_batch
-            for batch in batch_iter:
-                yield batch
+        # Append first chunk
+        table.append(first_table)
 
-        reader = pa.RecordBatchReader.from_batches(
-            first_batch.schema,
-            batch_generator(),
-        )
+        # Append remaining batches one-by-one (streaming without RecordBatchReader)
+        appended = first_table.num_rows
+        for batch in batch_iter:
+            if batch.schema != locked_arrow_schema:
+                batch = batch.cast(locked_arrow_schema)
 
-        table.append(reader)
+            chunk = _cast_null_columns(pa.Table.from_batches([batch]))
+            table.append(chunk)
+            appended += chunk.num_rows
 
-        print("Finished streaming append to Iceberg")
-        
+        print(f"Finished streaming append to Iceberg (rows appended: {appended})")
+            
     # -------------------------
     # Write to S3 dataset
     # -------------------------
