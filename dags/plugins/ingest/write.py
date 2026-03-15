@@ -1,4 +1,5 @@
 import warnings
+import uuid
 from datetime import date
 import time
 # Pyiceberg imports
@@ -13,6 +14,9 @@ import pyarrow as pa
 # Pyarrow
 import pyarrow.dataset as ds
 import pyarrow.fs as fs
+import pyarrow.parquet as pq
+# Trino
+from plugins.db.trino import TrinoSqlExecutor
 
 class WriteEngine:
 
@@ -202,25 +206,56 @@ class WriteEngine:
         catalog.create_namespace(TARGET_NAMESPACE)
 
     def write_arrow_batches(self, layer, source, schema, table_name, batch_iter):
-
         base_dir = f"{self.bucket}/{layer}/{source}/{schema}/{table_name}/"
 
-        file_options = ds.ParquetFileFormat().make_write_options(compression="snappy")
+        # Lock schema on first batch to prevent drift
+        first_batch = next(batch_iter, None)
+        if first_batch is None:
+            return
 
-        writer = None
+        locked_schema = first_batch.schema
 
-        for batch in batch_iter:
-
+        def _write_batch(batch: pa.RecordBatch):
+            nonlocal locked_schema
+            if batch.schema != locked_schema:
+                batch = batch.cast(locked_schema)
             table = pa.Table.from_batches([batch])
+            file_name = f"part-{uuid.uuid4().hex}.parquet"
+            path = f"{base_dir}{file_name}"
+            with self.s3.open_output_stream(path) as f:
+                pq.write_table(table, f, compression="snappy")
 
-            ds.write_dataset(
-                table,
-                base_dir=base_dir,
-                filesystem=self.s3,
-                format="parquet",
-                max_rows_per_file=self.max_rows_per_file,
-                file_options=file_options,
-                existing_data_behavior="overwrite_or_ignore",
-                create_dir=False,
-                use_threads=True,
-            )            
+        _write_batch(first_batch)
+        for batch in batch_iter:
+            _write_batch(batch)
+
+    def post_iceberg_write(self, namespace,table_name):
+        identifier = f"{namespace}.{table_name}"
+
+        # 1. Add compaction API: ALTER TABLE test_table EXECUTE optimize; on Trino
+        # 2. Add expire_snapshots API: ALTER TABLE test_table EXECUTE expire_snapshots(retention_threshold => '7d');
+        # 3. Add a "remove orophan files API": ALTER TABLE test_table EXECUTE remove_orphan_files(retention_threshold => '7d');
+        # 4. Add Analyze table: ANALYZE table_name;
+
+        try:
+            print(f"Running post-write maintenance for {identifier}: optimize")
+            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE optimize")
+        except Exception as e:
+            print(f"Warning: optimize failed for {identifier}: {e}")
+        try:
+            print(f"Running post-write maintenance for {identifier}: expire_snapshots")
+            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE expire_snapshots(retention_threshold => '7d')")
+        except Exception as e:
+            print(f"Warning: expire_snapshots failed for {identifier}: {e}")
+        try:
+            print(f"Running post-write maintenance for {identifier}: remove_orphan_files")
+            TrinoSqlExecutor.execute(f"ALTER TABLE {identifier} EXECUTE remove_orphan_files(retention_threshold => '7d')")
+        except Exception as e:
+            print(f"Warning: remove_orphan_files failed for {identifier}: {e}")
+        try:
+            print(f"Running post-write maintenance for {identifier}: ANALYZE")
+            TrinoSqlExecutor.execute(f"ANALYZE {identifier}")
+        except Exception as e:
+            print(f"Warning: ANALYZE failed for {identifier}: {e}")
+
+

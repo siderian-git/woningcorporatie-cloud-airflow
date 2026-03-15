@@ -19,7 +19,6 @@ class PostgresqlIngestEngine:
     # -------------------------
 
     def _connect(self):
-        # psycopg3 connection string: "postgresql://user:pass@host:5432/dbname"
         return psycopg2.connect(self.conn_string)
 
     # -------------------------
@@ -27,7 +26,6 @@ class PostgresqlIngestEngine:
     # -------------------------
 
     def get_pk_column(self, schema: Optional[str], table: str) -> Optional[str]:
-        # Returns first PK column (composite PKs return the first column by position)
         query = """
         SELECT kcu.column_name
         FROM information_schema.table_constraints tc
@@ -48,7 +46,6 @@ class PostgresqlIngestEngine:
 
     def get_min_max_pk(self, schema: Optional[str], table: str, pk: str):
         full_table = f'"{schema}"."{table}"' if schema else f'"{table}"'
-        # pk is an identifier; quote it
         query = f'SELECT MIN("{pk}"), MAX("{pk}") FROM {full_table}'
         with self._connect() as conn:
             with conn.cursor() as cur:
@@ -64,9 +61,7 @@ class PostgresqlIngestEngine:
         cursor = conn.cursor()
         cursor.execute(query, params or ())
 
-        columns = [desc.name for desc in cursor.description]
-
-        batches: list[pa.RecordBatch] = []
+        columns = [desc[0] for desc in cursor.description]
         target_schema: pa.Schema | None = None
 
         try:
@@ -81,17 +76,13 @@ class PostgresqlIngestEngine:
                 if target_schema is None:
                     target_schema = batch.schema
                 else:
-                    batch = batch.cast(target_schema)
+                    if batch.schema != target_schema:
+                        batch = batch.cast(target_schema)
 
-                batches.append(batch)
+                yield batch
         finally:
             cursor.close()
             conn.close()
-
-        if not batches:
-            return None
-
-        return pa.Table.from_batches(batches, schema=target_schema)
 
     # -------------------------
     # Public API
@@ -100,28 +91,24 @@ class PostgresqlIngestEngine:
     def ingest_full_table(self, source, schema: Optional[str], table: str):
         full_table = f'"{schema}"."{table}"' if schema else f'"{table}"'
         query = f"SELECT * FROM {full_table}"
-        arrow_table = self._stream_query_to_arrow(query)
-        return arrow_table if arrow_table else None
+        return self._stream_query_to_arrow(query)
 
     def ingest_partitioned(self, source, schema: Optional[str], table: str, partitions: int = 4):
         pk = self.get_pk_column(schema, table)
         if not pk:
-            return self.ingest_full_table(source, schema, table)
+            yield from self.ingest_full_table(source, schema, table)
+            return
 
         min_id, max_id = self.get_min_max_pk(schema, table, pk)
         if min_id is None:
-            return None
+            return
 
         step = math.ceil((max_id - min_id) / partitions) if partitions > 0 else (max_id - min_id)
 
         full_table = f'"{schema}"."{table}"' if schema else f'"{table}"'
-        last_arrow_table = None
 
         for i in range(partitions):
             start = min_id + i * step
             end = min(start + step - 1, max_id)
-
             query = f'SELECT * FROM {full_table} WHERE "{pk}" BETWEEN %s AND %s'
-            last_arrow_table = self._stream_query_to_arrow(query, (start, end))
-
-        return last_arrow_table if last_arrow_table else None
+            yield from self._stream_query_to_arrow(query, (start, end))

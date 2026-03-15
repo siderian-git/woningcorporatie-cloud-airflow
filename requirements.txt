@@ -3,3 +3,5 @@ pyarrow
 boto3
 pyiceberg[s3fs,hive]
 psycopg2-binary
+trino
+pydantic-settings

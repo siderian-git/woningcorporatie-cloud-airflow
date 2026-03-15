@@ -9,6 +9,7 @@ import pendulum
 
 from airflow.sdk import dag, task
 
+# Version 0.5: Add Trino module for compacting etc.
 # Version 0.4: Drop_table instead of purge_table
 # Version 0.3: Don't use batch reader
 # Version 0.2: Streaming version
@@ -21,6 +22,7 @@ from airflow.sdk import dag, task
     tags=["test2"],
 )
 def test2():
+
     @task()
     def get_table(schema_name = "staging", table_name = "eenheid"):
         odbc_conn_string = EMPIRE_CONNECTION_URL
@@ -31,12 +33,6 @@ def test2():
         fabric_ingest_engine = FabricIngestEngine(
             odbc_conn_string=odbc_conn_string,
         )
-        # source_write_engine = WriteEngine(
-        #     s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
-        #     s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
-        #     s3_endpoint=LAKEHOUSE_URL,
-        #     bucket=LAKEHOUSE_S3_BUCKET,
-        # )
         iceberg_write_engine = WriteEngine(
             # hive_uri="thrift://localhost:9083",
             s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
@@ -57,58 +53,102 @@ def test2():
             partitions=6,
         )
         if batch_stream is not None:
-            # print("Testing write to source layer (arrow dataset)...")
-            # source_write_engine.write_arrow_dataset(
-            #     layer = layer_name,
-            #     source = source_name, 
-            #     schema = schema_name,
-            #     table_name = table_name, 
-            #     arrow_table=arrow_table
-            # )
+            namespace = "staging"
             print("Write to iceberg...")
             iceberg_write_engine.write_to_iceberg(
-                namespace="staging",
+                namespace=namespace,
                 table_name=table_name,
                 batch_iter=batch_stream,
             )
-
-
+            iceberg_write_engine.post_iceberg_write(
+                namespace=namespace,
+                table_name=table_name,
+            )
         else:
             print("No data ingested for table: ", table_name)
 
     @task()
-    def get_postgresql_table(schema_name = "public", table_name = "eenheid"):
+    def get_postgresql_table(schema_name="public", table_name="eenheid"):
         postgresql_ingest_engine = PostgresqlIngestEngine(
             connection_url=POSTGRESQL_CONNECTION_URL,
-            batch_size=100000
+            batch_size=100000,
         )
         iceberg_write_engine = WriteEngine(
-            # hive_uri="thrift://localhost:9083",
             s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
             s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
             s3_endpoint=LAKEHOUSE_URL,
+            bucket=LAKEHOUSE_S3_BUCKET,
         )
 
-        # ingest_table("empire", "[staging].[eenheid]", "id")
-        layer_name = "source"
         source_name = "vera"
-        schema_name = "staging"
 
-        print("Table ingest: ",table_name)
-        arrow_table = postgresql_ingest_engine.ingest_partitioned(
+        print("Table ingest:", table_name)
+        batch_stream = postgresql_ingest_engine.ingest_partitioned(
             source=source_name,
             schema=schema_name,
             table=table_name,
-            partitions=6
+            partitions=6,
         )
-        if arrow_table is not None:
-            print("Write to iceberg...")
-            namespace = "staging"
-            iceberg_write_engine.write_to_iceberg(
-                namespace=namespace,
-                table_name=table_name,
-                arrow_table=arrow_table,
-            )
+
+        # Consume one batch to check emptiness without losing it
+        first_batch = next(batch_stream, None)
+        if first_batch is None:
+            print("No data ingested for table:", table_name)
+            return
+
+        def _chain_first():
+            yield first_batch
+            yield from batch_stream
+
+        print("Write to iceberg...")
+        iceberg_write_engine.write_to_iceberg(
+            namespace="staging",
+            table_name=table_name,
+            batch_iter=_chain_first(),
+        )
+
+    @task()
+    def get_source_table(schema_name: str = "staging", table_name: str = "eenheid"):
+        odbc_conn_string = EMPIRE_CONNECTION_URL
+        if odbc_conn_string is None:
+            print("Please set the EMPIRE_CONNECTION_URL environment variable to run the test.")
+            return
+
+        fabric_ingest_engine = FabricIngestEngine(
+            odbc_conn_string=odbc_conn_string,
+        )
+
+        source_write_engine = WriteEngine(
+            s3_access_key=LAKEHOUSE_S3_ACCESS_KEY,
+            s3_secret_key=LAKEHOUSE_S3_SECRET_KEY,
+            s3_endpoint=LAKEHOUSE_URL,
+            bucket=LAKEHOUSE_S3_BUCKET,
+        )
+
+        layer_name = "source"
+        source_name = "empire"
+
+        print("Table ingest:", table_name)
+        batch_stream = fabric_ingest_engine.ingest_partitioned(
+            source=source_name,
+            schema=schema_name,
+            table=table_name,
+            partitions=6,
+        )
+
+        if batch_stream is None:
+            print("No data ingested for table:", table_name)
+            return
+
+        print("Writing to source layer (arrow batches)...")
+        source_write_engine.write_arrow_batches(
+            layer=layer_name,
+            source=source_name,
+            schema=schema_name,
+            table_name=table_name,
+            batch_iter=batch_stream,
+        )
+
 
     list_of_tables = [
         # {"schema": "staging", "table": "eenheid"},
@@ -118,8 +158,8 @@ def test2():
         # {"schema": "staging", "table": "wijk"}, # Leeg
         # {"schema": "staging", "table": "eenheid_cluster"},
         # {"schema": "staging", "table": "cluster"},
-        {"schema": "staging", "table": "grootboekmutatie"},
-        # {"schema": "staging", "table": "grootboekrekening"},
+        # {"schema": "staging", "table": "grootboekmutatie"},
+        {"schema": "staging", "table": "grootboekrekening"},
     ]
 
     for table_info in list_of_tables:
