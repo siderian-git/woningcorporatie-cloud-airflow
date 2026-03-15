@@ -90,7 +90,8 @@ class WriteEngine:
         try:
             catalog.purge_table(identifier)
             print(f"Purged existing table {identifier}")
-        except Exception:
+        except Exception as e:
+            print(f"Warning: could not purge existing table {identifier} (it may not exist): {e}")
             pass
 
         first_batch = next(batch_iter, None)
