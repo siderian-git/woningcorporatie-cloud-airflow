@@ -1,7 +1,7 @@
 from plugins.ingest.fabric import FabricIngestEngine
 from plugins.ingest.postgresql import PostgresqlIngestEngine
 from plugins.ingest.write import WriteEngine
-from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,POSTGRESQL_CONNECTION_URL
+from plugins.ingest.config import EMPIRE_CONNECTION_URL,LAKEHOUSE_URL,LAKEHOUSE_S3_ACCESS_KEY,LAKEHOUSE_S3_SECRET_KEY,LAKEHOUSE_S3_BUCKET,LAKEHOUSE_POSTGRESQL_CONNECTION_URL
 
 import json
 
