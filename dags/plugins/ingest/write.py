@@ -88,7 +88,7 @@ class WriteEngine:
 
         # Drop old table (full load pattern)
         try:
-            catalog.purge_table(identifier)
+            catalog.drop_table(identifier)
             print(f"Purged existing table {identifier}")
         except Exception as e:
             print(f"Warning: could not purge existing table {identifier} (it may not exist): {e}")

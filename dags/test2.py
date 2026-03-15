@@ -9,6 +9,7 @@ import pendulum
 
 from airflow.sdk import dag, task
 
+# Version 0.4: Drop_table instead of purge_table
 # Version 0.3: Don't use batch reader
 # Version 0.2: Streaming version
 # Version 0.1: Initial version, testing ingest and write for a single table from both sources.
